@@ -1,0 +1,6 @@
+"require"in window&&require("discourse/lib/theme-settings-store").registerSettings(46,{sidebar_width:17}),"define"in window&&define("discourse/theme-46/discourse/api-initializers/full-width",["exports","@glimmer/component","discourse/components/header/home-logo","discourse/lib/api","@ember/component","@ember/template-factory"],(function(e,i,t,s,o,l){"use strict"
+Object.defineProperty(e,"__esModule",{value:!0}),e.default=void 0
+require("discourse/lib/theme-settings-store").getObjectForTheme(46)
+e.default=(0,s.apiInitializer)("0.8",(e=>{document.body.classList.add("full-width-enabled"),e.renderInOutlet("home-logo",class extends i.default{get forceMinimizedFalse(){return this.args.outletArgs.minimized&&e.container.lookup("controller:application").get("showSidebar")}static#e=(()=>(0,o.setComponentTemplate)((0,l.createTemplateFactory)({id:null,block:'[[[1,"\\n"],[41,[30,0,["forceMinimizedFalse"]],[[[1,"          "],[8,[32,0],null,[["@minimized"],[false]],null],[1,"\\n"]],[]],[[[1,"          "],[18,1,null],[1,"\\n"]],[]]],[1,"      "]],["&default"],false,["if","yield"]]',moduleName:"/discourse/theme-46/discourse/api-initializers/full-width",scope:()=>[t.default],isStrictMode:!0}),this))()})}))}))
+
+//# sourceMappingURL=f80ef4db9ce0ced8893ff6026d3ee3ce3db22ef9.map?__ws=forum.arduino.cc

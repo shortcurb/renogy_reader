@@ -1,3 +1,23 @@
+Respectfully and appreciably forked from wrybread/ESP32ArduinoRenogy. There's no way I would have been able to figure out the Modbus on my own.
+
+Like wrybread, I have an off-grid need for electricity, mostly because I want to try running a very small homelab in my backyard shed.
+I have a Renogy Wanderer 30A charger and a Wanderer 10A charger (generally referenced as CC herein), if I haven't updated this README saying otherwise, they both support the software and hardware in this repo.
+
+This repo contains both a through-hole PCB and an expanded aruidno sketch that reads the data from the CC and fires it off to an MQTT broker
+# Hardware features:
+* ESP32
+* LM2596 through hole variant, from eBay/Amazon 4V-40V input, 5V, 3A output (make sure you set the potentiometer correctly!!)
+* two DS18B20 temperature probes (one onboard, one via connector)
+* Power connector
+* Three connectors for offboard relays (either 5V or powered by the board's main input voltage)
+* RJ45 (ethernet) header, its mechanically compatible with an RJ12 cord, which is what you'll need for the CC plug
+
+If you want an unpopulated or pre-populated board, please reach out to me. JLCPCB sends me 5 for every order, and I only need 1.
+
+# Software features:
+* I forget, need to go back through and add code for controlling the relays as well
+
+
 # ESP32ArduinoRenogy
 
 This lets you read data from Renogy charge controllers via their RS232 port using an ESP32 or Arduino. 
