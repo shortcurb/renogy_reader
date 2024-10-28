@@ -1,17 +1,17 @@
 // https://github.com/wrybread/ESP32ArduinoRenogy
 // https://github.com/syvic/ModbusMaster
 #include <ModbusMaster.h>
-#include "secrets.h"
 #include <WiFi.h>
 #include <PubSubClient.h>
-#include <ArduinoJson.h>  // Include ArduinoJson library
-#include "esp_task_wdt.h" // Watchdog timer
+#include "secrets.h"
+// Remember, a lot of the sensitive info like wifi passwords, MQTT credentials, and MQTT topics are store in secrets.h
 
 ModbusMaster node;
 
 const int relaypin1 = 12;  // Relay 1 connected to D12
 const int relaypin2 = 25;  // Relay 2 connected to D25
 const int relaypin3 = 27;  // Relay 3 connected to D27 
+
 
 #define RXD2 13
 #define TXD2 14
@@ -24,8 +24,6 @@ bool simulator_mode = false;
 WiFiClient espClient;
 PubSubClient client(espClient);
 const char* commandtopic = "kili/sagehouse/solar/renogy20/command";
-int modbus_timeout_count = 0;  // Count consecutive Modbus timeouts
-const int max_modbus_timeout_count = 5;  // Reset if this threshold is exceeded
 
 struct Controller_data {
   
@@ -107,47 +105,43 @@ void callback(char* topic, byte* message, unsigned int length) {
   }
 }
 
-// control the load pins on Renogy charge controllers that have them
-void renogy_control_load(bool state) {
-    if (state==1) {
-        Serial.println("Turning load on");
-        node.writeSingleRegister(0x010A, 1);  // turn on load
-    }
-    else {
-        Serial.println("Turning load off");
-        node.writeSingleRegister(0x010A, 0);  // turn off load
-    }
-}
-
 void reconnect() {
-    while (!client.connected()) {
-        Serial.print("Attempting MQTT connection...");
-        if (WiFi.status() != WL_CONNECTED) { // Check Wi-Fi status first
-            setup_wifi();
-        }
-        if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
-            Serial.println("connected");
-            client.subscribe(commandtopic);
-        } else {
-            Serial.print("failed, rc=");
-            Serial.print(client.state());
-            Serial.println(" try again in 5 seconds");
-            delay(5000);
-        }
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
+      Serial.println("connected");
+      // Subscribe to the topic
+      client.subscribe(commandtopic);
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
     }
+  }
 }
 
 void setup_wifi() {
-    delay(10);
-    Serial.print("Connecting to ");
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
+  delay(10);
+  // Start connecting to WiFi
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
 }
 
 void handle_command(const String message) {
@@ -180,59 +174,47 @@ void handle_command(const String message) {
     }
 }
 
-void setup() {
-    Serial.begin(115200);
-    Serial.println("Started!");
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println("Started!");
 
-    // Configure and initialize the Task Watchdog Timer (WDT)
-    static bool wdt_initialized = false;
-    if (!wdt_initialized) {
-        esp_task_wdt_config_t wdt_config = {
-            .timeout_ms = 10000,       // Set WDT timeout to 10,000 ms
-            .trigger_panic = true      // Trigger panic on timeout
-        };
-        esp_task_wdt_init(&wdt_config); // Initialize WDT with the config
-        esp_task_wdt_add(NULL);         // Add current task to the watchdog
-        wdt_initialized = true;         // Mark as initialized to avoid reinitializing
-    }
+  // create a second serial interface for modbus
+  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2); 
 
-    Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2); 
-    int modbus_address = 255; 
-    node.begin(modbus_address, Serial2); 
+  // my Renogy Wanderer has an (slave) address of 255! Not in docs??? 
+  // Do all Renogy charge controllers use this address?
+  int modbus_address = 255; 
+  node.begin(modbus_address, Serial2); 
 
-    setup_wifi();
-    client.setServer(mqtt_server, mqtt_port);
-    client.setCallback(callback);
-    delay(100);
+  setup_wifi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+  delay(100);
+
+  
 }
 
-void loop() {
-    esp_task_wdt_reset();  // Initial reset at the start of loop
 
-    if (WiFi.status() != WL_CONNECTED) {  // Check Wi-Fi connection
-        setup_wifi();
-        esp_task_wdt_reset();  // Reset after Wi-Fi reconnection attempt
-    }
+void loop()
+{
 
-    if (!client.connected()) {
-        reconnect();
-        esp_task_wdt_reset();  // Reset after MQTT reconnection attempt
-    }
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+  static uint32_t lastTaskTime = 0;  // Store the last time a task was run
+  const uint32_t TASK_INTERVAL = 5000;  // 5-second interval
 
-    client.loop();
-    esp_task_wdt_reset();  // Reset after processing client.loop()
+  // Check if 5 seconds have passed since the last task
+  if (millis() - lastTaskTime >= TASK_INTERVAL) {
+    lastTaskTime = millis();  // Update the last task time
 
-    static uint32_t lastTaskTime = 0;  
-    const uint32_t TASK_INTERVAL = 5000;  // 5-second interval
+    // Perform any task that should happen every 5 seconds
+    send_data();
+  }
+}  
 
-    if (millis() - lastTaskTime >= TASK_INTERVAL) {
-        lastTaskTime = millis();
-        send_data();           // Publish data and perform tasks
-        esp_task_wdt_reset();  // Reset watchdog timer after successful task
-    }
-
-    delay(10);  // Small delay to prevent a tight loop; adjust if needed
-}
 
 void send_data() {
     static uint32_t i;
@@ -243,70 +225,57 @@ void send_data() {
     // set word 1 of TX buffer to most-significant word of counter (bits 31..16)
     node.setTransmitBuffer(1, highWord(i));
 
-    if (renogy_read_data_registers() && renogy_read_info_registers()) {
-        read_relay_state();
-        modbus_timeout_count = 0;  // Reset timeout count on successful read
+    renogy_read_data_registers();
+    renogy_read_info_registers();
+    read_relay_state();
 
-        client.publish("kili/sagehouse/solar/renogy20/status", "Charge controller connected");
-        client.publish("kili/sagehouse/solar/renogy20/battery_soc", String(renogy_data.battery_soc).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/battery_voltage", String(renogy_data.battery_voltage).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/battery_charging_amps", String(renogy_data.battery_charging_amps/10).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/battery_temperature", String(renogy_data.battery_temperature).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/controller_temperature", String(renogy_data.controller_temperature).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/load_voltage", String(renogy_data.load_voltage).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/load_amps", String(renogy_data.load_amps).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/load_watts", String(renogy_data.load_watts).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/solar_panel_voltage", String(renogy_data.solar_panel_voltage).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/solar_panel_amps", String(renogy_data.solar_panel_amps).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/solar_panel_watts", String(renogy_data.solar_panel_watts).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/min_battery_voltage_today", String(renogy_data.min_battery_voltage_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/max_battery_voltage_today", String(renogy_data.max_battery_voltage_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/max_charging_amps_today", String(renogy_data.max_charging_amps_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/max_discharging_amps_today", String(renogy_data.max_discharging_amps_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/max_charge_watts_today", String(renogy_data.max_charge_watts_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/max_discharge_watts_today", String(renogy_data.max_discharge_watts_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/charge_amphours_today", String(renogy_data.charge_amphours_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/discharge_amphours_today", String(renogy_data.discharge_amphours_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/charge_watthours_today", String(renogy_data.charge_watthours_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/discharge_watthours_today", String(renogy_data.discharge_watthours_today).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/controller_uptime_days", String(renogy_data.controller_uptime_days).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/total_battery_overcharges", String(renogy_data.total_battery_overcharges).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/total_battery_fullcharges", String(renogy_data.total_battery_fullcharges).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/battery_temperatureF", String(renogy_data.battery_temperatureF).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/controller_temperatureF", String(renogy_data.controller_temperatureF).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/battery_charging_watts", String(renogy_data.battery_charging_watts/10).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/last_update_time", String(renogy_data.last_update_time).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/controller_connected", renogy_data.controller_connected ? "true" : "false");
+    client.publish("kili/sagehouse/solar/renogy20/battery_soc", String(renogy_data.battery_soc).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/battery_voltage", String(renogy_data.battery_voltage).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/battery_charging_amps", String(renogy_data.battery_charging_amps/10).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/battery_temperature", String(renogy_data.battery_temperature).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/controller_temperature", String(renogy_data.controller_temperature).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/load_voltage", String(renogy_data.load_voltage).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/load_amps", String(renogy_data.load_amps).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/load_watts", String(renogy_data.load_watts).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/solar_panel_voltage", String(renogy_data.solar_panel_voltage).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/solar_panel_amps", String(renogy_data.solar_panel_amps).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/solar_panel_watts", String(renogy_data.solar_panel_watts).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/min_battery_voltage_today", String(renogy_data.min_battery_voltage_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/max_battery_voltage_today", String(renogy_data.max_battery_voltage_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/max_charging_amps_today", String(renogy_data.max_charging_amps_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/max_discharging_amps_today", String(renogy_data.max_discharging_amps_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/max_charge_watts_today", String(renogy_data.max_charge_watts_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/max_discharge_watts_today", String(renogy_data.max_discharge_watts_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/charge_amphours_today", String(renogy_data.charge_amphours_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/discharge_amphours_today", String(renogy_data.discharge_amphours_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/charge_watthours_today", String(renogy_data.charge_watthours_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/discharge_watthours_today", String(renogy_data.discharge_watthours_today).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/controller_uptime_days", String(renogy_data.controller_uptime_days).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/total_battery_overcharges", String(renogy_data.total_battery_overcharges).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/total_battery_fullcharges", String(renogy_data.total_battery_fullcharges).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/battery_temperatureF", String(renogy_data.battery_temperatureF).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/controller_temperatureF", String(renogy_data.controller_temperatureF).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/battery_charging_watts", String(renogy_data.battery_charging_watts/10).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/last_update_time", String(renogy_data.last_update_time).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/controller_connected", renogy_data.controller_connected ? "true" : "false");
 
-        client.publish("kili/sagehouse/solar/renogy20/voltage_rating", String(renogy_info.voltage_rating).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/amp_rating", String(renogy_info.amp_rating).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/discharge_amp_rating", String(renogy_info.discharge_amp_rating).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/type", String(renogy_info.type).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/controller_name", String(renogy_info.controller_name).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/software_version", renogy_info.software_version);
-        client.publish("kili/sagehouse/solar/renogy20/hardware_version", renogy_info.hardware_version);
-        client.publish("kili/sagehouse/solar/renogy20/serial_number", renogy_info.serial_number);
-        client.publish("kili/sagehouse/solar/renogy20/modbus_address", String(renogy_info.modbus_address).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/wattage_rating", String(renogy_info.wattage_rating).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/last_update_time", String(renogy_info.last_update_time).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/voltage_rating", String(renogy_info.voltage_rating).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/amp_rating", String(renogy_info.amp_rating).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/discharge_amp_rating", String(renogy_info.discharge_amp_rating).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/type", String(renogy_info.type).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/controller_name", String(renogy_info.controller_name).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/software_version", renogy_info.software_version);
+    client.publish("kili/sagehouse/solar/renogy20/hardware_version", renogy_info.hardware_version);
+    client.publish("kili/sagehouse/solar/renogy20/serial_number", renogy_info.serial_number);
+    client.publish("kili/sagehouse/solar/renogy20/modbus_address", String(renogy_info.modbus_address).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/wattage_rating", String(renogy_info.wattage_rating).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/last_update_time", String(renogy_info.last_update_time).c_str());
 
-        client.publish("kili/sagehouse/solar/renogy20/relay1state", String(relay_info.relay1state).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/relay2state", String(relay_info.relay2state).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/relay3state", String(relay_info.relay3state).c_str());
-        client.publish("kili/sagehouse/solar/renogy20/loadstate", String(relay_info.loadstate).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/relay1state", String(relay_info.relay1state).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/relay2state", String(relay_info.relay2state).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/relay3state", String(relay_info.relay3state).c_str());
+    client.publish("kili/sagehouse/solar/renogy20/loadstate", String(relay_info.loadstate).c_str());
 
-
-        esp_task_wdt_reset();  // Reset WDT after publishing data
-
-    } else {
-        client.publish("kili/sagehouse/solar/renogy20/status", "Charge controller disconnected");
-        modbus_timeout_count++;
-        if (modbus_timeout_count >= max_modbus_timeout_count) {
-            esp_task_wdt_reset();  // Reset WDT after publishing data
-            ESP.restart();  // Restart if too many consecutive timeouts
-        }
-
-    }
 }
 
 bool renogy_read_data_registers() {
@@ -374,8 +343,6 @@ bool renogy_read_data_registers() {
     //Registers 0x121 to 0x122 - Controller fault codes - 33/34
 
     if (print_data) Serial.println("---");
-    renogy_data.last_update_time = millis();
-    return true;
   }
   else 
   {
@@ -399,10 +366,13 @@ bool renogy_read_data_registers() {
     renogy_data.solar_panel_amps = 0;
     renogy_data.solar_panel_watts = 0;
     renogy_data.battery_charging_watts = 0;
-    renogy_data.controller_connected = false;
-    return false;
+    if (simulator_mode) {
+      renogy_data.battery_voltage = 13.99;    
+      renogy_data.battery_soc = 55; 
+    }
   }
 }
+
 
 bool renogy_read_info_registers() 
 {
@@ -479,7 +449,6 @@ bool renogy_read_info_registers()
     renogy_info.last_update_time = millis();
   
     if (print_data) Serial.println("---");
-    return true;
   }
   else
   {
@@ -493,7 +462,6 @@ bool renogy_read_info_registers()
       Serial.println(result, HEX); // E2 is timeout
     }
     // anything else to do if we fail to read the info reisters?
-    return false;
   }
 }
 
@@ -508,3 +476,14 @@ void read_relay_state() {
 }
 
 
+// control the load pins on Renogy charge controllers that have them
+void renogy_control_load(bool state) {
+    if (state==1) {
+        Serial.println("Turning load on");
+        node.writeSingleRegister(0x010A, 1);  // turn on load
+    }
+    else {
+        Serial.println("Turning load off");
+        node.writeSingleRegister(0x010A, 0);  // turn off load
+    }
+}
