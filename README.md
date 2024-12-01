@@ -15,7 +15,13 @@ This repo contains both a through-hole PCB and an expanded aruidno sketch that r
 If you want an unpopulated or pre-populated board, please reach out to me. JLCPCB sends me 5 for every order, and I only need 1.
 
 # Software features:
-* I forget, need to go back through and add code for controlling the relays as well
+There are multiple pieces of software here:
+# renogy_reader_arduino
+Reads data from the modbus and the custom PCB and fires it off to an MQTT broker
+
+# renogy_mqtt_db_interface
+Is intented to run as a container on a local server (such as a homelab), read data sent from the arduino over MQTT, and write it to a mariadb database
+
 
 
 # ESP32ArduinoRenogy
