@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+    container_name: solar_data_writer  # Custom container name
+    environment:
+      MQTT_BROKER: '10.10.9.4'
+      MQTT_USER: 'kili'
+      MQTT_PW: 'kili'
+      MQTT_TOPIC: 'kili/sagehouse/solar/#'
+      DB_HOST: 'bombur_mariadb'
+      DB_USER: 'bombur'
+      DB_NAME: 'solar'
+      DB_PW: '!@EDR^BG45'
+      WRITE_FREQ: '120'  # Note: Strings are safer for numeric values
