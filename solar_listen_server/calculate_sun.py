@@ -27,11 +27,29 @@ earth = eph['earth']
 observer = earth + Topos(latitude_degrees=latitude, longitude_degrees=longitude)
 
 # Define time range
-timer = datetime.strptime('1/1/2024 00:00:00', '%m/%d/%Y %H:%M:%S')
+timer = datetime.strptime('11/28/2024 00:00:00', '%m/%d/%Y %H:%M:%S')
+connection = mariadb.connect(**db_credentials)
+with connection.cursor() as cursor:
+    query = 'SELECT datetime FROM sun_position order by datetime desc limit 1'
+    cursor.execute(query,[])
+    timer = cursor.fetchall()[0][0]
+    connection.close()
 end = datetime.strptime('1/1/2026 00:00:00', '%m/%d/%Y %H:%M:%S')
 
 # Load Skyfield's timescale
 ts = load.timescale()
+
+
+def writer(meta):
+    query = "INSERT IGNORE INTO sun_position (datetime,azimuth,altitude) VALUES (?,?,?) "
+    try:
+        with connection.cursor() as cursor:
+            print('writing')
+            cursor.executemany(query,meta)
+            connection.commit()
+            connection.close()
+    except mariadb.OperationalError:
+        writer(meta)
 
 meta = []
 while timer < end:
@@ -45,21 +63,18 @@ while timer < end:
     alt, az, _ = astrometric.altaz()
     
     # Output results
-    print(f"{timer} - Altitude: {alt.degrees:.2f}°, Azimuth: {az.degrees:.2f}°")
+#    print(f"{timer} - Altitude: {alt.degrees:.2f}°, Azimuth: {az.degrees:.2f}°")
     
     # Increment time by 60 seconds
     connection = mariadb.connect(**db_credentials)
-    query = "INSERT INTO sun_position (datetime,azimuth,altitude) VALUES (?,?,?)"
     line = [timer,az.degrees,alt.degrees]
     meta.append(line)
-
+    next = timer + timedelta(seconds=60)
+    if timer.day != next.day:
+        writer(meta)
+        meta = []
+    print(len(meta))
     timer += timedelta(seconds=60)
-
-with connection.cursor() as cursor:
-    cursor.executemany(query,meta)
-    connection.commit()
-    connection.close()
-
         
     
 

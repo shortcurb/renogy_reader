@@ -4,14 +4,39 @@ import os
 from aiomqtt import Client
 import mariadb
 from threading import Lock
+from quart import Quart, jsonify
+
 if os.getenv('ENVIRONMENT') != 'production':
     from dotenv import load_dotenv
     load_dotenv()
 
 
 
+
+
+
 class ListenRead:
     def __init__(self):
+
+        self.health = {
+            'healthy':False,
+            'listening':'Unknown',
+            'writing':'Unknown'
+        }
+
+        self.app = Quart(__name__)  # Initialize the Quart app within the class
+        @self.app.route('/healthz', methods=['GET'])
+        async def get_data():
+            if self.health['listening'] and self.health['writing']:
+                self.health.update({'healthy':True})
+                return jsonify(self.health), 200  # Return 200 status code
+            else:
+                self.health.update({'healthy':False})
+                return jsonify(self.health), 503  # Return 503 status code for unhealthy
+
+
+
+
         self.mqtt_credentials = {
             'hostname': os.environ['MQTT_BROKER'],  # Updated to 'host' for aiomqtt
             'port': 1883,
@@ -19,7 +44,7 @@ class ListenRead:
             'password': os.environ['MQTT_PW'],
             'keepalive': int(os.environ['MQTT_KEEPALIVE'])
         }
-        print(json.dumps(self.mqtt_credentials,indent=2))
+
         self.mqtt_topic = os.environ["MQTT_TOPIC"]
         self.write_frequency =int(os.environ["WRITE_FREQ"])
 
@@ -83,6 +108,7 @@ class ListenRead:
             'loadstate': str
         }   
 
+
     async def listen(self):
         while True:  # Outer loop for reconnection
             try:
@@ -106,19 +132,17 @@ class ListenRead:
                                     message.payload.decode,
                                     translated_value,
                                 ]
+                            self.health.update({'listening':True})
 
                         except ValueError:
                             traceback.print_exc()
                             print(f"Unknown or incorrect translation for topic {message.topic}, message value {message.payload.decode} of type {self.data_structure[end_topic]}")
-
-
-
             except Exception as e:
                 print(f"MQTT connection error: {e}")
+                self.health.update({'healthy':False,'listening':False})
                 print(f"Attempting to reconnect in {self.mqtt_retry_delay} seconds...")
                 await asyncio.sleep(self.mqtt_retry_delay)  # Wait before reconnecting
                 continue
-
 
     async def write(self):
         persistent_data = {}
@@ -154,7 +178,10 @@ class ListenRead:
                                 write_data.append(line_data)
                             cursor.executemany(query, write_data)
                             connection.commit()
+                        self.health.update({'writing':True})
+
                     except mariadb.Error as e:
+                        self.health.update({'healthy':False,'writing':False})
                         print(f"Database error: {e}")
                         print(f"Retrying database connection in {self.db_retry_delay} seconds...")
                         await asyncio.sleep(self.db_retry_delay)
@@ -168,11 +195,15 @@ class ListenRead:
 
 
 
+
+
 async def main():
+    health_port = os.getenv('HEALTH_PORT') or 5000
     lr = ListenRead()
     await asyncio.gather(
         lr.listen(),
-        lr.write()
+        lr.write(),
+        lr.app.run_task(host='0.0.0.0', port=int(health_port))  # Use the app from the class instance
     )
 
 

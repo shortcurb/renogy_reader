@@ -2,3 +2,4 @@ python-dotenv
 aiomqtt
 mariadb
 typing_extensions
+quart
