@@ -16,7 +16,8 @@ class ListenRead:
             'hostname': os.environ['MQTT_BROKER'],  # Updated to 'host' for aiomqtt
             'port': 1883,
             'username': os.environ['MQTT_USER'],
-            'password': os.environ['MQTT_PW']
+            'password': os.environ['MQTT_PW'],
+            'keepalive': int(os.environ['MQTT_KEEPALIVE'])
         }
         print(json.dumps(self.mqtt_credentials,indent=2))
         self.mqtt_topic = os.environ["MQTT_TOPIC"]
@@ -35,6 +36,53 @@ class ListenRead:
         self.db_retry_delay = int(os.environ['DB_RETRY_DELAY'])
         self.mqtt_retry_delay = int(os.environ['MQTT_RETRY_DELAY'])
 
+        self.data_structure = {
+            'status': str,
+            'battery_soc': float,
+            'battery_voltage': float,
+            'battery_charging_amps': float,
+            'battery_temperature': float,
+            'controller_temperature': float,
+            'load_voltage': float,
+            'load_amps': float,
+            'load_watts': float,
+            'solar_panel_voltage': float,
+            'solar_panel_amps': float,
+            'solar_panel_watts': float,
+            'min_battery_voltage_today': float,
+            'max_battery_voltage_today': float,
+            'max_charging_amps_today': float,
+            'max_discharging_amps_today': float,
+            'max_charge_watts_today': float,
+            'max_discharge_watts_today': float,
+            'charge_amphours_today': float,
+            'discharge_amphours_today': float,
+            'charge_watthours_today': float,
+            'discharge_watthours_today': float,
+            'controller_uptime_days': float,
+            'total_battery_overcharges': float,
+            'total_battery_fullcharges': float,
+            'battery_temperatureF': float,
+            'controller_temperatureF': float,
+            'battery_charging_watts': float,
+            'last_update_time': str,
+            'controller_connected': str,
+            'voltage_rating': float,
+            'amp_rating': float,
+            'discharge_amp_rating': float,
+            'type': str,
+            'controller_name': str,
+            'software_version': str,
+            'hardware_version': str,
+            'serial_number': str,
+            'modbus_address': float,
+            'wattage_rating': float,
+            'relay1state': str,
+            'relay2state': str,
+            'relay3state': str,
+            'loadstate': str
+        }   
+
     async def listen(self):
         while True:  # Outer loop for reconnection
             try:
@@ -42,17 +90,28 @@ class ListenRead:
                     self.mqtt_credentials['hostname'],
                     port=self.mqtt_credentials['port'],
                     username=self.mqtt_credentials['username'],
-                    password=self.mqtt_credentials['password']
+                    password=self.mqtt_credentials['password'],
+                    keepalive=self.mqtt_credentials['keepalive'],
                 ) as client:
                     await client.subscribe(self.mqtt_topic)
                     print(f"Connected to MQTT broker at {self.mqtt_credentials['hostname']}")
 
                     async for message in client.messages:
-                        with self.lock:  # Prevent race condition
-                            self.data[str(message.topic)] = [
-                                datetime.datetime.now(),
-                                message.payload.decode(),
-                            ]
+                        end_topic = str(message.topic).split('/')[-1]
+                        try:
+                            translated_value = self.data_structure[end_topic](message.payload.decode())
+                            with self.lock:  # Prevent race condition
+                                self.data[str(message.topic)] = [
+                                    datetime.datetime.now(),
+                                    message.payload.decode,
+                                    translated_value,
+                                ]
+
+                        except ValueError:
+                            traceback.print_exc()
+                            print(f"Unknown or incorrect translation for topic {message.topic}, message value {message.payload.decode} of type {self.data_structure[end_topic]}")
+
+
 
             except Exception as e:
                 print(f"MQTT connection error: {e}")
@@ -85,8 +144,14 @@ class ListenRead:
                     try:
                         connection = mariadb.connect(**self.db_credentials)
                         with connection.cursor() as cursor:
-                            query = 'INSERT INTO renogy20 (topic, datetime, value) VALUES (?, ?, ?)'
-                            write_data = [[key, value[0], value[1]] for key, value in this_write.items()]
+                            query = 'INSERT INTO renogy20 (topic, datetime, value_str, value_float) VALUES (?, ?, ?, ?)'
+                            write_data = []
+                            for key,value in this_write.items():
+                                if type(value[2]) == float:
+                                    line_data = [key,value[0], None, value[2]]
+                                else:
+                                    line_data = [key, value[0], value[2], None]
+                                write_data.append(line_data)
                             cursor.executemany(query, write_data)
                             connection.commit()
                     except mariadb.Error as e:
