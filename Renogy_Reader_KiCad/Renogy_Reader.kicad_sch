@@ -3646,6 +3646,16 @@
 		)
 		(uuid "f4a178b7-282c-495d-873b-db4ddc1faf78")
 	)
+	(text "Lol wtf how did I mess this up?"
+		(exclude_from_sim no)
+		(at 215.138 108.204 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "245cb748-8a63-4889-a3a8-efaf3c578058")
+	)
 	(text "The RS232 port can't supply enough current\n to boot the ESP32...which is crazy. \nAnyways, pull power from somewhere else.\nEither a discrete battery that charges off the load\nOr frick it we ball power off battery"
 		(exclude_from_sim no)
 		(at 168.91 90.678 0)

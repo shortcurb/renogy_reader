@@ -6,6 +6,8 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>  // Include ArduinoJson library
 #include "esp_task_wdt.h" // Watchdog timer
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 ModbusMaster node;
 
@@ -15,6 +17,10 @@ const int relaypin3 = 27;  // Relay 3 connected to D27
 
 #define RXD2 13
 #define TXD2 14
+#define ONE_WIRE_BUS 4  // GPIO D4 on ESP32
+
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
 
 const uint32_t num_data_registers = 35;
 const uint32_t num_info_registers = 17;
@@ -60,6 +66,8 @@ struct Controller_data {
   float battery_charging_watts;      // watts. necessary? Does it ever differ from solar_panel_watts?
   long last_update_time;             // millis() of last update time
   bool controller_connected;         // bool if we successfully read data from the controller
+  float ds18tempC;
+  float ds18tempF;
 };
 Controller_data renogy_data;
 
@@ -87,6 +95,12 @@ struct Relay_info {
     int loadstate;
 };
 Relay_info relay_info;
+
+struct Board_info {
+    float boardTempC;
+    float boardTempF;
+};
+Board_info board_info;
 
 void callback(char* topic, byte* message, unsigned int length) {
   Serial.print("Message arrived on topic: ");
@@ -203,6 +217,8 @@ void setup() {
     setup_wifi();
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
+    sensors.begin();
+
     delay(100);
 }
 
@@ -245,8 +261,11 @@ void send_data() {
 
     if (renogy_read_data_registers() && renogy_read_info_registers()) {
         read_relay_state();
+        read_ds18b20();
         modbus_timeout_count = 0;  // Reset timeout count on successful read
 
+        client.publish("kili/sagehouse/solar/renogy20/board_temperature", String(board_info.boardTempC).c_str());
+        client.publish("kili/sagehouse/solar/renogy20/board_temperatureF", String(board_info.boardTempF).c_str());
         client.publish("kili/sagehouse/solar/renogy20/status", "Charge controller connected");
         client.publish("kili/sagehouse/solar/renogy20/battery_soc", String(renogy_data.battery_soc).c_str());
         client.publish("kili/sagehouse/solar/renogy20/battery_voltage", String(renogy_data.battery_voltage).c_str());
@@ -504,7 +523,17 @@ void read_relay_state() {
     uint8_t result = node.readHoldingRegisters(0x010A,1);
     if (result == node.ku8MBSuccess) {
         uint16_t value = node.getResponseBuffer(0);  
-    }
+    } 
+}
+
+void read_ds18b20() {
+  sensors.requestTemperatures();  // Request temperature from DS18B20
+  float ds18tempC = sensors.getTempCByIndex(0);  // Read temperature in Celsius
+  float ds18tempF = ds18tempC * 9.0 / 5.0 + 32.0;  // Convert to Fahrenheit
+  board_info.boardTempC = ds18tempC;
+  board_info.boardTempF = ds18tempF;
+  Serial.println("ds18b20 temp c");
+  Serial.println(ds18tempC);
 }
 
 
