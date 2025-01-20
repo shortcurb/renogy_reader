@@ -137,7 +137,7 @@
 		(descr "8 Pol Shallow Latch Connector, Modjack, RJ45 (https://cdn.amphenol-icc.com/media/wysiwyg/files/drawing/c-bmj-0102.pdf)")
 		(tags "RJ45")
 		(property "Reference" "J3"
-			(at 4.445 -5 360)
+			(at 4.445 -5 0)
 			(layer "F.SilkS")
 			(uuid "25ff8fb9-aaa2-4a4c-a445-2cbc67754458")
 			(effects
@@ -148,7 +148,7 @@
 			)
 		)
 		(property "Value" "RJ45"
-			(at 4.7244 4.3688 360)
+			(at 4.7244 4.3688 0)
 			(layer "F.Fab")
 			(uuid "ef01a227-4493-4ab8-a3f1-a43013818dec")
 			(effects
@@ -363,7 +363,7 @@
 			(uuid "12deb2d7-6974-4c8c-ad21-6639c6b1604f")
 		)
 		(fp_text user "${REFERENCE}"
-			(at 4.445 2 360)
+			(at 4.445 2 0)
 			(layer "F.Fab")
 			(uuid "4343e339-6e6e-4ba3-8985-49fbf916d9e2")
 			(effects
@@ -4414,7 +4414,7 @@
 			(uuid "2afe8804-87d3-4ab4-9d7a-34cd284f79fc")
 		)
 		(fp_text user "${REFERENCE}"
-			(at 1.27 6.35 360)
+			(at 1.27 6.35 0)
 			(layer "F.Fab")
 			(uuid "ca11dc4d-a6c6-4ff3-8eb4-fea222e1627c")
 			(effects
@@ -4992,7 +4992,7 @@
 		(descr "JST EH series connector, B2B-EH-A (http://www.jst-mfg.com/product/pdf/eng/eEH.pdf), generated with kicad-footprint-generator")
 		(tags "connector JST EH vertical")
 		(property "Reference" "JOptionalBatteryHeader1"
-			(at 1.25 -4 360)
+			(at 1.25 -4 0)
 			(layer "F.SilkS")
 			(uuid "1548d048-2abf-4c60-9460-fa6610372b5e")
 			(effects
@@ -5003,7 +5003,7 @@
 			)
 		)
 		(property "Value" "Conn_01x02"
-			(at 1.25 2.2 360)
+			(at 1.25 2.2 0)
 			(layer "F.Fab")
 			(uuid "70fc3166-9a2f-4438-984d-ab0c1f3fc653")
 			(effects
@@ -5308,7 +5308,7 @@
 			(uuid "505a58f4-2248-4b09-b04f-4eb48ab34e3d")
 		)
 		(fp_text user "${REFERENCE}"
-			(at 1.25 0.3 360)
+			(at 1.25 0.3 0)
 			(layer "F.Fab")
 			(uuid "07f08e1c-c3c0-4088-a0e9-bb296f7edce8")
 			(effects
@@ -8948,6 +8948,19 @@
 			(justify left bottom mirror)
 		)
 	)
+	(gr_text "ERROR this needs to be flipped"
+		(at 168.5036 86.1822 -0)
+		(layer "B.SilkS")
+		(uuid "48729021-1f7c-4167-94b7-2cd6156b8d7c")
+		(effects
+			(font
+				(size 1.5 1.5)
+				(thickness 0.3)
+				(bold yes)
+			)
+			(justify left bottom)
+		)
+	)
 	(gr_text "Renogy_Reader\nMade by Alex\nIn Colorado\nAugust 2024"
 		(at 189.6364 48.1584 -0)
 		(layer "B.SilkS")
@@ -10770,9 +10783,8 @@
 	(group ""
 		(uuid "8843ba6d-6219-444f-9e63-ffc5081e4a10")
 		(members "3cfb4f5a-f335-4be0-9a1c-9145136f1c85" "67c9e37e-7f65-456f-b99d-642935e9b858"
-			"6d06ec00-f52c-4c45-ba5b-0db5cf1736ff" "7b0a8b82-33f6-4704-a8f1-7b13f32fb76d"
-			"a0c5c44d-f610-4e5d-825e-ab73a6829277" "e9fa7b45-234c-435b-8d04-4c63696fe304"
-			"fe081201-df82-4bb3-88cd-7111d3b0833e"
+			"7b0a8b82-33f6-4704-a8f1-7b13f32fb76d" "a0c5c44d-f610-4e5d-825e-ab73a6829277"
+			"e9fa7b45-234c-435b-8d04-4c63696fe304" "fe081201-df82-4bb3-88cd-7111d3b0833e"
 		)
 	)
 )

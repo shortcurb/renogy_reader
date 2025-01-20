@@ -3686,6 +3686,16 @@
 		)
 		(uuid "718a21d8-0563-4be0-bd52-d52104c9c175")
 	)
+	(text "ERRORS:\nDS18B20 ground and Vcc pins are flipped"
+		(exclude_from_sim no)
+		(at 40.132 21.336 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "c51b8ce4-3513-438f-981c-60310ff2b4d5")
+	)
 	(text "pinout based on https://github.com/rosswarren/renogymodbus"
 		(exclude_from_sim no)
 		(at 151.384 18.542 0)
