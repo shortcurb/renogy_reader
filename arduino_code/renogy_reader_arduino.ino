@@ -32,8 +32,8 @@ struct Controller_data {
   uint8_t battery_soc;               // percent
   float battery_voltage;             // volts
   float battery_charging_amps;       // amps
-  uint8_t battery_temperature;       // celcius
-  uint8_t controller_temperature;    // celcius
+  int16_t battery_temperature;       // celcius
+  int16_t controller_temperature;    // celcius
   float load_voltage;                // volts
   float load_amps;                   // amps
   uint8_t load_watts;                // watts
