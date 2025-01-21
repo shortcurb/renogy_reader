@@ -63,6 +63,7 @@ class ListenRead:
         self.mqtt_retry_delay = int(os.environ['MQTT_RETRY_DELAY'])
 
         self.data_structure = {
+            'raw_data':float,
             'board_temperature':float,
             'board_temperatureF':float,
             'status': str,

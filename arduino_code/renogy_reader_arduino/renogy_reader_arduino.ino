@@ -59,6 +59,7 @@ struct Controller_data {
   uint8_t controller_uptime_days;    // days
   uint8_t total_battery_overcharges; // count
   uint8_t total_battery_fullcharges; // count
+  uint16_t raw_data;
 
   // convenience values
   float battery_temperatureF;        // fahrenheit
@@ -264,6 +265,7 @@ void send_data() {
         read_ds18b20();
         modbus_timeout_count = 0;  // Reset timeout count on successful read
 
+        client.publish("kili/sagehouse/solar/renogy20/raw_data", String(renogy_data.raw_data).c_str());
         client.publish("kili/sagehouse/solar/renogy20/board_temperature", String(board_info.boardTempC).c_str());
         client.publish("kili/sagehouse/solar/renogy20/board_temperatureF", String(board_info.boardTempF).c_str());
         client.publish("kili/sagehouse/solar/renogy20/status", "Charge controller connected");
@@ -332,47 +334,69 @@ bool renogy_read_data_registers() {
   uint8_t j, result;
   uint16_t data_registers[num_data_registers];
   char buffer1[40], buffer2[40];
-  uint8_t raw_data;
+  uint16_t raw_data;
 
-  // prints data about each read to the console
-  bool print_data=0; 
-  
+  // Prints data about each read to the console
+  bool print_data = false;
+
   result = node.readHoldingRegisters(0x100, num_data_registers);
-  if (result == node.ku8MBSuccess)
-  {
+  if (result == node.ku8MBSuccess) {
     if (print_data) Serial.println("Successfully read the data registers!");
     renogy_data.controller_connected = true;
-    for (j = 0; j < num_data_registers; j++)
-    {
+
+    for (j = 0; j < num_data_registers; j++) {
       data_registers[j] = node.getResponseBuffer(j);
       if (print_data) Serial.println(data_registers[j]);
     }
 
-    renogy_data.battery_soc = data_registers[0]; 
-    renogy_data.battery_voltage = data_registers[1] * .1; // will it crash if data_registers[1] doesn't exist?
-    renogy_data.battery_charging_amps = data_registers[2] * .1;
-
+    renogy_data.battery_soc = data_registers[0];
+    renogy_data.battery_voltage = data_registers[1] * 0.1; // Will it crash if data_registers[1] doesn't exist?
+    renogy_data.battery_charging_amps = data_registers[2] * 0.1;
     renogy_data.battery_charging_watts = renogy_data.battery_voltage * renogy_data.battery_charging_amps;
-    
-    //0x103 returns two bytes, one for battery and one for controller temp in c
-    uint16_t raw_data = data_registers[3]; // eg 5913
-    renogy_data.controller_temperature = (int8_t)(raw_data >> 8); 
-    renogy_data.battery_temperature = (int8_t)(raw_data & 0xFF);
-    // for convenience, fahrenheit versions of the temperatures
-    renogy_data.controller_temperatureF = (renogy_data.controller_temperature * 1.8)+32;
-    renogy_data.battery_temperatureF = (renogy_data.battery_temperature * 1.8)+32;
 
-    renogy_data.load_voltage = data_registers[4] * .1;
-    renogy_data.load_amps = data_registers[5] * .01;
+    // ✅ Read and decode temperatures from 0x103 (data_registers[3])
+    raw_data = data_registers[3];  // Example: 0x8C7C (35980)
+
+    // Extract battery temperature (7 bits)
+    int8_t battery_temperature = raw_data & 0x7F;
+    // Extract battery temperature sign (bit 7)
+    if (raw_data & 0x80) battery_temperature = -battery_temperature;
+
+    // Extract controller temperature (7 bits)
+    int8_t controller_temperature = (raw_data >> 8) & 0x7F;
+    // Extract controller temperature sign (bit 15)
+    if (raw_data & 0x8000) controller_temperature = -controller_temperature;
+
+    // Store temperatures in renogy_data struct
+    renogy_data.controller_temperature = controller_temperature;
+    renogy_data.battery_temperature = battery_temperature;
+    renogy_data.raw_data = raw_data;
+
+    // ✅ Fahrenheit conversion
+    renogy_data.controller_temperatureF = (renogy_data.controller_temperature * 1.8) + 32;
+    renogy_data.battery_temperatureF = (renogy_data.battery_temperature * 1.8) + 32;
+
+    // ✅ Debug print
+    if (print_data) {
+      Serial.print("Raw Modbus Data (0x103): ");
+      Serial.println(raw_data, HEX);
+      Serial.print("Controller Temp (C): ");
+      Serial.println(renogy_data.controller_temperature);
+      Serial.print("Battery Temp (C): ");
+      Serial.println(renogy_data.battery_temperature);
+    }
+
+    renogy_data.load_voltage = data_registers[4] * 0.1;
+    renogy_data.load_amps = data_registers[5] * 0.01;
     renogy_data.load_watts = data_registers[6];
-    renogy_data.solar_panel_voltage = data_registers[7] * .1;
-    renogy_data.solar_panel_amps = data_registers[8] * .01;
+    renogy_data.solar_panel_voltage = data_registers[7] * 0.1;
+    renogy_data.solar_panel_amps = data_registers[8] * 0.01;
     renogy_data.solar_panel_watts = data_registers[9];
-     //Register 0x10A - Turn on load, write register, unsupported in wanderer - 10
-    renogy_data.min_battery_voltage_today = data_registers[11] * .1;
-    renogy_data.max_battery_voltage_today = data_registers[12] * .1; 
-    renogy_data.max_charging_amps_today = data_registers[13] * .01;
-    renogy_data.max_discharging_amps_today = data_registers[14] * .1;
+
+    renogy_data.min_battery_voltage_today = data_registers[11] * 0.1;
+    renogy_data.max_battery_voltage_today = data_registers[12] * 0.1;
+    renogy_data.max_charging_amps_today = data_registers[13] * 0.01;
+    renogy_data.max_discharging_amps_today = data_registers[14] * 0.1;
     renogy_data.max_charge_watts_today = data_registers[15];
     renogy_data.max_discharge_watts_today = data_registers[16];
     renogy_data.charge_amphours_today = data_registers[17];
@@ -382,39 +406,29 @@ bool renogy_read_data_registers() {
     renogy_data.controller_uptime_days = data_registers[21];
     renogy_data.total_battery_overcharges = data_registers[22];
     renogy_data.total_battery_fullcharges = data_registers[23];
-    renogy_data.last_update_time = millis();
 
-    // Add these registers:
-    //Registers 0x118 to 0x119- Total Charging Amp-Hours - 24/25    
-    //Registers 0x11A to 0x11B- Total Discharging Amp-Hours - 26/27    
-    //Registers 0x11C to 0x11D- Total Cumulative power generation (kWH) - 28/29    
-    //Registers 0x11E to 0x11F- Total Cumulative power consumption (kWH) - 30/31    
-    //Register 0x120 - Load Status, Load Brightness, Charging State - 32    
-    //Registers 0x121 to 0x122 - Controller fault codes - 33/34
+    renogy_data.last_update_time = millis();
 
     if (print_data) Serial.println("---");
-    renogy_data.last_update_time = millis();
     return true;
-  }
-  else 
-  {
-    if (result == 0xE2) 
-    {
-    Serial.println("Timed out reading the data registers!");
-    }
-    else 
-    {
+  } 
+  else {
+    if (result == 0xE2) {
+      Serial.println("Timed out reading the data registers!");
+    } 
+    else {
       Serial.print("Failed to read the data registers... ");
       Serial.println(result, HEX); // E2 is timeout
     }
-    // Reset some values if we don't get a reading
+
+    // Reset values if the reading fails
     renogy_data.controller_connected = false;
-    renogy_data.battery_voltage = 0; 
+    renogy_data.battery_voltage = 0;
     renogy_data.battery_charging_amps = 0;
     renogy_data.battery_soc = 0;
     renogy_data.battery_charging_amps = 0;
     renogy_data.controller_temperature = 0;
-    renogy_data.battery_temperature = 0;    
+    renogy_data.battery_temperature = 0;
     renogy_data.solar_panel_amps = 0;
     renogy_data.solar_panel_watts = 0;
     renogy_data.battery_charging_watts = 0;
