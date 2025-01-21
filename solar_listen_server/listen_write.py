@@ -1,6 +1,7 @@
 import datetime,traceback,json
 import asyncio
 import os
+import traceback
 from aiomqtt import Client
 import mariadb
 from threading import Lock
@@ -62,6 +63,8 @@ class ListenRead:
         self.mqtt_retry_delay = int(os.environ['MQTT_RETRY_DELAY'])
 
         self.data_structure = {
+            'board_temperature':float,
+            'board_temperatureF':float,
             'status': str,
             'battery_soc': float,
             'battery_voltage': float,
@@ -139,6 +142,8 @@ class ListenRead:
                             print(f"Unknown or incorrect translation for topic {message.topic}, message value {message.payload.decode} of type {self.data_structure[end_topic]}")
             except Exception as e:
                 print(f"MQTT connection error: {e}")
+                traceback.print_exc()
+
                 self.health.update({'healthy':False,'listening':False})
                 print(f"Attempting to reconnect in {self.mqtt_retry_delay} seconds...")
                 await asyncio.sleep(self.mqtt_retry_delay)  # Wait before reconnecting
@@ -157,7 +162,7 @@ class ListenRead:
                         include = True
                     else:
                         if value[1] != persistent_data[key][1]:
-                            print('different values for key', key, 'values', value[1], 'vs', persistent_data[key][1])
+#                            print('different values for key', key, 'values', value[1], 'vs', persistent_data[key][1])
                             include = True
                     if include:
                         this_write.update({key: value})
@@ -176,6 +181,7 @@ class ListenRead:
                                 else:
                                     line_data = [key, value[0], value[2], None]
                                 write_data.append(line_data)
+                            print('writing',len(write_data),'items to db')
                             cursor.executemany(query, write_data)
                             connection.commit()
                         self.health.update({'writing':True})

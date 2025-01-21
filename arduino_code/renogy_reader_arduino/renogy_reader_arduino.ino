@@ -356,8 +356,8 @@ bool renogy_read_data_registers() {
     
     //0x103 returns two bytes, one for battery and one for controller temp in c
     uint16_t raw_data = data_registers[3]; // eg 5913
-    renogy_data.controller_temperature = raw_data/256;
-    renogy_data.battery_temperature = raw_data%256; 
+    renogy_data.controller_temperature = (int8_t)(raw_data >> 8); 
+    renogy_data.battery_temperature = (int8_t)(raw_data & 0xFF);
     // for convenience, fahrenheit versions of the temperatures
     renogy_data.controller_temperatureF = (renogy_data.controller_temperature * 1.8)+32;
     renogy_data.battery_temperatureF = (renogy_data.battery_temperature * 1.8)+32;

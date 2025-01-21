@@ -11,6 +11,7 @@ This repo contains both a through-hole PCB and an expanded aruidno sketch that r
 * Power connector
 * Three connectors for offboard relays (either 5V or powered by the board's main input voltage)
 * RJ45 (ethernet) header, its mechanically compatible with an RJ12 cord, which is what you'll need for the CC plug
+    * This actually insn't true, as the RJ12 can get inserted wrong and have incorrect contacts. I soldered an ethernet cord to an RJ12 cord and am using that now.
 
 If you want an unpopulated or pre-populated board, please reach out to me. JLCPCB sends me 5 for every order, and I only need 1.
 
